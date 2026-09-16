@@ -1,0 +1,46 @@
+# ---- Java / Maven ----
+target/
+*.class
+*.jar
+*.war
+.classpath
+.project
+.settings/
+
+# ---- Python / Django ----
+__pycache__/
+*.py[cod]
+*$py.class
+*.sqlite3
+db.sqlite3
+media/
+staticfiles/
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv/
+
+# Environment variables (NEVER commit real secrets)
+.env
+backend/.env
+
+# Logs
+*.log
+local_settings.py
+
+# ---- Editors / OS ----
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+
+# ---- Postman ----
+*.postman_environment.json
+
+# ---- Build artifacts ----
+*.zip
+build/
+dist/

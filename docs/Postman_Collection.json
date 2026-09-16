@@ -1,0 +1,184 @@
+{
+  "info": {
+    "name": "Inventory Management System API",
+    "description": "Complete CRUD test collection for the Inventory Management System (Django REST Framework backend). Import this file into Postman: File > Import.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://127.0.0.1:8000/api" },
+    { "key": "product_id", "value": "1" }
+  ],
+  "item": [
+    {
+      "name": "1. Create Product - Valid Data",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"product_name\": \"Wireless Mouse\",\n  \"category\": \"Electronics\",\n  \"quantity\": 50,\n  \"price\": \"19.99\",\n  \"supplier\": \"TechSupply Co\"\n}"
+        },
+        "url": { "raw": "{{base_url}}/products/", "host": ["{{base_url}}"], "path": ["products", ""] }
+      },
+      "response": []
+    },
+    {
+      "name": "2. Create Product - Missing Required Field",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"category\": \"Electronics\",\n  \"quantity\": 10,\n  \"price\": \"9.99\",\n  \"supplier\": \"TechSupply Co\"\n}"
+        },
+        "url": { "raw": "{{base_url}}/products/", "host": ["{{base_url}}"], "path": ["products", ""] }
+      },
+      "response": [],
+      "description": "Expected: 400 Bad Request, since product_name is required."
+    },
+    {
+      "name": "3. Create Product - Invalid Data (negative quantity)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"product_name\": \"Bad Item\",\n  \"category\": \"Other\",\n  \"quantity\": -5,\n  \"price\": \"10.00\",\n  \"supplier\": \"Test Supplier\"\n}"
+        },
+        "url": { "raw": "{{base_url}}/products/", "host": ["{{base_url}}"], "path": ["products", ""] }
+      },
+      "response": [],
+      "description": "Expected: 400 Bad Request, since quantity cannot be negative."
+    },
+    {
+      "name": "4. Get All Products",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": { "raw": "{{base_url}}/products/", "host": ["{{base_url}}"], "path": ["products", ""] }
+      },
+      "response": []
+    },
+    {
+      "name": "5. Get All Products - Empty Database Check",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": { "raw": "{{base_url}}/products/", "host": ["{{base_url}}"], "path": ["products", ""] }
+      },
+      "response": [],
+      "description": "Run this against a freshly migrated database to confirm it returns count: 0 and results: []."
+    },
+    {
+      "name": "6. Search Products by Name",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/products/?search=mouse",
+          "host": ["{{base_url}}"],
+          "path": ["products", ""],
+          "query": [{ "key": "search", "value": "mouse" }]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "7. Filter Products by Category",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/products/?category=Electronics",
+          "host": ["{{base_url}}"],
+          "path": ["products", ""],
+          "query": [{ "key": "category", "value": "Electronics" }]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "8. Get Single Product - Valid ID",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": { "raw": "{{base_url}}/products/{{product_id}}/", "host": ["{{base_url}}"], "path": ["products", "{{product_id}}", ""] }
+      },
+      "response": []
+    },
+    {
+      "name": "9. Get Single Product - Invalid ID",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": { "raw": "{{base_url}}/products/99999/", "host": ["{{base_url}}"], "path": ["products", "99999", ""] }
+      },
+      "response": [],
+      "description": "Expected: 404 Not Found."
+    },
+    {
+      "name": "10. Update Product (PATCH) - Valid ID",
+      "request": {
+        "method": "PATCH",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{\n  \"quantity\": 75\n}" },
+        "url": { "raw": "{{base_url}}/products/{{product_id}}/", "host": ["{{base_url}}"], "path": ["products", "{{product_id}}", ""] }
+      },
+      "response": []
+    },
+    {
+      "name": "11. Update Product (PUT) - Full Update",
+      "request": {
+        "method": "PUT",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"product_name\": \"Wireless Mouse Pro\",\n  \"category\": \"Electronics\",\n  \"quantity\": 30,\n  \"price\": \"24.99\",\n  \"supplier\": \"TechSupply Co\"\n}"
+        },
+        "url": { "raw": "{{base_url}}/products/{{product_id}}/", "host": ["{{base_url}}"], "path": ["products", "{{product_id}}", ""] }
+      },
+      "response": []
+    },
+    {
+      "name": "12. Update Product - Invalid ID",
+      "request": {
+        "method": "PATCH",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{\n  \"quantity\": 5\n}" },
+        "url": { "raw": "{{base_url}}/products/99999/", "host": ["{{base_url}}"], "path": ["products", "99999", ""] }
+      },
+      "response": [],
+      "description": "Expected: 404 Not Found."
+    },
+    {
+      "name": "13. Update Product - Invalid Data (negative price)",
+      "request": {
+        "method": "PATCH",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{\n  \"price\": \"-5.00\"\n}" },
+        "url": { "raw": "{{base_url}}/products/{{product_id}}/", "host": ["{{base_url}}"], "path": ["products", "{{product_id}}", ""] }
+      },
+      "response": [],
+      "description": "Expected: 400 Bad Request."
+    },
+    {
+      "name": "14. Delete Product - Valid ID",
+      "request": {
+        "method": "DELETE",
+        "header": [],
+        "url": { "raw": "{{base_url}}/products/{{product_id}}/", "host": ["{{base_url}}"], "path": ["products", "{{product_id}}", ""] }
+      },
+      "response": []
+    },
+    {
+      "name": "15. Delete Product - Invalid ID",
+      "request": {
+        "method": "DELETE",
+        "header": [],
+        "url": { "raw": "{{base_url}}/products/99999/", "host": ["{{base_url}}"], "path": ["products", "99999", ""] }
+      },
+      "response": [],
+      "description": "Expected: 404 Not Found."
+    }
+  ]
+}
