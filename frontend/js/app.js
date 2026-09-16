@@ -116,61 +116,202 @@ function attachEventListeners() {
 }
 
 // ---------------------------------------------------------------------------
-// API calls
+// Initial sample data for standalone demo mode (LocalStorage fallback)
+// ---------------------------------------------------------------------------
+const SAMPLE_PRODUCTS = [
+  {
+    id: 1,
+    product_name: 'Wireless Optical Mouse',
+    category: 'Electronics',
+    quantity: 45,
+    price: '29.99',
+    supplier: 'Logitech',
+    stock_status: 'In Stock',
+    created_date: new Date(Date.now() - 86400000 * 5).toISOString(),
+    updated_date: new Date().toISOString()
+  },
+  {
+    id: 2,
+    product_name: 'Ergonomic Office Chair',
+    category: 'Furniture',
+    quantity: 5,
+    price: '199.99',
+    supplier: 'Herman Miller',
+    stock_status: 'Low Stock',
+    created_date: new Date(Date.now() - 86400000 * 3).toISOString(),
+    updated_date: new Date().toISOString()
+  },
+  {
+    id: 3,
+    product_name: 'Mechanical Keyboard',
+    category: 'Electronics',
+    quantity: 0,
+    price: '89.50',
+    supplier: 'Keychron',
+    stock_status: 'Out of Stock',
+    created_date: new Date(Date.now() - 86400000 * 2).toISOString(),
+    updated_date: new Date().toISOString()
+  },
+  {
+    id: 4,
+    product_name: 'Stainless Steel Water Bottle',
+    category: 'Other',
+    quantity: 120,
+    price: '15.00',
+    supplier: 'HydroFlask',
+    stock_status: 'In Stock',
+    created_date: new Date(Date.now() - 86400000 * 1).toISOString(),
+    updated_date: new Date().toISOString()
+  }
+];
+
+let isLocalDemoMode = false;
+
+function computeStockStatus(qty) {
+  const q = Number(qty);
+  if (q === 0) return 'Out of Stock';
+  if (q <= 10) return 'Low Stock';
+  return 'In Stock';
+}
+
+function getStoredProducts() {
+  const data = localStorage.getItem('inventory_products');
+  if (!data) {
+    localStorage.setItem('inventory_products', JSON.stringify(SAMPLE_PRODUCTS));
+    return SAMPLE_PRODUCTS;
+  }
+  try {
+    return JSON.parse(data);
+  } catch (_) {
+    return SAMPLE_PRODUCTS;
+  }
+}
+
+function saveStoredProducts(products) {
+  localStorage.setItem('inventory_products', JSON.stringify(products));
+}
+
+// ---------------------------------------------------------------------------
+// API calls with LocalStorage fallback
 // ---------------------------------------------------------------------------
 async function fetchProducts() {
   showLoading(true);
   try {
-    const response = await fetch(PRODUCTS_URL);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 2000);
+    const response = await fetch(PRODUCTS_URL, { signal: controller.signal });
+    clearTimeout(timeoutId);
     if (!response.ok) throw new Error(`Server responded with ${response.status}`);
     const data = await response.json();
 
-    // DRF pagination wraps results in {count, next, previous, results}.
     allProducts = Array.isArray(data) ? data : data.results;
-    setApiStatus(true);
+    isLocalDemoMode = false;
+    setApiStatus(true, 'API connected');
+  } catch (err) {
+    console.warn('Backend API unavailable. Falling back to Demo Mode (LocalStorage).', err);
+    isLocalDemoMode = true;
+    allProducts = getStoredProducts();
+    setApiStatus(true, 'Demo Mode (Local Data)');
+  } finally {
     renderTable();
     renderStats();
-  } catch (err) {
-    console.error('Failed to load products:', err);
-    setApiStatus(false);
-    showToast('Could not reach the API. Is the Django server running?', 'error');
-  } finally {
     showLoading(false);
   }
 }
 
 async function createProduct(payload) {
-  const response = await fetch(PRODUCTS_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-  const data = await response.json();
-  return { ok: response.ok, data };
+  if (isLocalDemoMode) {
+    const products = getStoredProducts();
+    const newId = products.length > 0 ? Math.max(...products.map(p => p.id)) + 1 : 1;
+    const newProduct = {
+      id: newId,
+      ...payload,
+      stock_status: computeStockStatus(payload.quantity),
+      created_date: new Date().toISOString(),
+      updated_date: new Date().toISOString()
+    };
+    products.unshift(newProduct);
+    saveStoredProducts(products);
+    return { ok: true, data: { success: true, message: 'Product created successfully.', data: newProduct } };
+  }
+
+  try {
+    const response = await fetch(PRODUCTS_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await response.json();
+    return { ok: response.ok, data };
+  } catch (err) {
+    // Fallback to local
+    isLocalDemoMode = true;
+    return createProduct(payload);
+  }
 }
 
 async function updateProduct(id, payload) {
-  const response = await fetch(`${PRODUCTS_URL}${id}/`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-  const data = await response.json();
-  return { ok: response.ok, data };
+  if (isLocalDemoMode) {
+    let products = getStoredProducts();
+    const numId = Number(id);
+    let updatedObj = null;
+    products = products.map(p => {
+      if (p.id === numId) {
+        updatedObj = {
+          ...p,
+          ...payload,
+          stock_status: computeStockStatus(payload.quantity !== undefined ? payload.quantity : p.quantity),
+          updated_date: new Date().toISOString()
+        };
+        return updatedObj;
+      }
+      return p;
+    });
+    saveStoredProducts(products);
+    return { ok: true, data: { success: true, message: 'Product updated successfully.', data: updatedObj } };
+  }
+
+  try {
+    const response = await fetch(`${PRODUCTS_URL}${id}/`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await response.json();
+    return { ok: response.ok, data };
+  } catch (err) {
+    isLocalDemoMode = true;
+    return updateProduct(id, payload);
+  }
 }
 
 async function deleteProduct(id) {
-  const response = await fetch(`${PRODUCTS_URL}${id}/`, { method: 'DELETE' });
-  let data = {};
-  try { data = await response.json(); } catch (_) { /* no body */ }
-  return { ok: response.ok, data };
+  if (isLocalDemoMode) {
+    let products = getStoredProducts();
+    const numId = Number(id);
+    const target = products.find(p => p.id === numId);
+    products = products.filter(p => p.id !== numId);
+    saveStoredProducts(products);
+    const name = target ? target.product_name : 'Product';
+    return { ok: true, data: { success: true, message: `Product "${name}" deleted successfully.` } };
+  }
+
+  try {
+    const response = await fetch(`${PRODUCTS_URL}${id}/`, { method: 'DELETE' });
+    let data = {};
+    try { data = await response.json(); } catch (_) { /* no body */ }
+    return { ok: response.ok, data };
+  } catch (err) {
+    isLocalDemoMode = true;
+    return deleteProduct(id);
+  }
 }
 
-function setApiStatus(isOnline) {
+function setApiStatus(isOnline, statusText) {
   apiStatusEl.classList.remove('status-pill--pending', 'status-pill--ok', 'status-pill--error');
   if (isOnline) {
     apiStatusEl.classList.add('status-pill--ok');
-    apiStatusEl.textContent = 'API connected';
+    apiStatusEl.textContent = statusText || 'API connected';
   } else {
     apiStatusEl.classList.add('status-pill--error');
     apiStatusEl.textContent = 'API offline';
