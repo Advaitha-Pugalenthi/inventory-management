@@ -116,6 +116,7 @@ function attachEventListeners() {
 }
 
 // ---------------------------------------------------------------------------
+// API calls
 // Initial sample data for standalone demo mode (LocalStorage fallback)
 // ---------------------------------------------------------------------------
 const SAMPLE_PRODUCTS = [
@@ -197,6 +198,7 @@ function saveStoredProducts(products) {
 async function fetchProducts() {
   showLoading(true);
   try {
+    const response = await fetch(PRODUCTS_URL);
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 2000);
     const response = await fetch(PRODUCTS_URL, { signal: controller.signal });
@@ -204,7 +206,9 @@ async function fetchProducts() {
     if (!response.ok) throw new Error(`Server responded with ${response.status}`);
     const data = await response.json();
 
+    // DRF pagination wraps results in {count, next, previous, results}.
     allProducts = Array.isArray(data) ? data : data.results;
+    setApiStatus(true);
     isLocalDemoMode = false;
     setApiStatus(true, 'API connected');
   } catch (err) {
@@ -215,11 +219,23 @@ async function fetchProducts() {
   } finally {
     renderTable();
     renderStats();
+  } catch (err) {
+    console.error('Failed to load products:', err);
+    setApiStatus(false);
+    showToast('Could not reach the API. Is the Django server running?', 'error');
+  } finally {
     showLoading(false);
   }
 }
 
 async function createProduct(payload) {
+  const response = await fetch(PRODUCTS_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const data = await response.json();
+  return { ok: response.ok, data };
   if (isLocalDemoMode) {
     const products = getStoredProducts();
     const newId = products.length > 0 ? Math.max(...products.map(p => p.id)) + 1 : 1;
@@ -251,6 +267,13 @@ async function createProduct(payload) {
 }
 
 async function updateProduct(id, payload) {
+  const response = await fetch(`${PRODUCTS_URL}${id}/`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const data = await response.json();
+  return { ok: response.ok, data };
   if (isLocalDemoMode) {
     let products = getStoredProducts();
     const numId = Number(id);
@@ -286,6 +309,10 @@ async function updateProduct(id, payload) {
 }
 
 async function deleteProduct(id) {
+  const response = await fetch(`${PRODUCTS_URL}${id}/`, { method: 'DELETE' });
+  let data = {};
+  try { data = await response.json(); } catch (_) { /* no body */ }
+  return { ok: response.ok, data };
   if (isLocalDemoMode) {
     let products = getStoredProducts();
     const numId = Number(id);
@@ -307,10 +334,12 @@ async function deleteProduct(id) {
   }
 }
 
+function setApiStatus(isOnline) {
 function setApiStatus(isOnline, statusText) {
   apiStatusEl.classList.remove('status-pill--pending', 'status-pill--ok', 'status-pill--error');
   if (isOnline) {
     apiStatusEl.classList.add('status-pill--ok');
+    apiStatusEl.textContent = 'API connected';
     apiStatusEl.textContent = statusText || 'API connected';
   } else {
     apiStatusEl.classList.add('status-pill--error');
