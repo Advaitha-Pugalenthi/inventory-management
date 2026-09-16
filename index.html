@@ -1,11 +1,171 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta http-equiv="refresh" content="0; url=frontend/index.html" />
-  <title>Inventory Management System</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Inventory Control</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
-  <p>Redirecting to <a href="frontend/index.html">Inventory Control Dashboard</a>...</p>
+
+  <!-- Top bar -->
+  <header class="topbar">
+    <div class="topbar__brand">
+      <span class="topbar__mark">IC</span>
+      <div>
+        <h1 class="topbar__title">Inventory Control</h1>
+        <p class="topbar__subtitle">Stock tracking &amp; warehouse records</p>
+      </div>
+    </div>
+    <div class="topbar__meta">
+      <span id="apiStatus" class="status-pill status-pill--pending">checking API…</span>
+    </div>
+  </header>
+
+  <main class="page">
+
+    <!-- Stat strip -->
+    <section class="stat-strip" aria-label="Inventory summary">
+      <div class="stat-strip__item">
+        <span class="stat-strip__value" id="statTotal">0</span>
+        <span class="stat-strip__label">Total products</span>
+      </div>
+      <div class="stat-strip__item">
+        <span class="stat-strip__value" id="statInStock">0</span>
+        <span class="stat-strip__label">In stock</span>
+      </div>
+      <div class="stat-strip__item stat-strip__item--warning">
+        <span class="stat-strip__value" id="statLowStock">0</span>
+        <span class="stat-strip__label">Low stock</span>
+      </div>
+      <div class="stat-strip__item stat-strip__item--danger">
+        <span class="stat-strip__value" id="statOutStock">0</span>
+        <span class="stat-strip__label">Out of stock</span>
+      </div>
+      <div class="stat-strip__item">
+        <span class="stat-strip__value" id="statValue">$0.00</span>
+        <span class="stat-strip__label">Inventory value</span>
+      </div>
+    </section>
+
+    <!-- Toolbar -->
+    <section class="toolbar">
+      <div class="toolbar__filters">
+        <div class="field field--search">
+          <label for="searchInput" class="field__label">Search</label>
+          <input type="text" id="searchInput" placeholder="Search by product or supplier…" autocomplete="off" />
+        </div>
+        <div class="field">
+          <label for="categoryFilter" class="field__label">Category</label>
+          <select id="categoryFilter">
+            <option value="">All categories</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="statusFilter" class="field__label">Stock status</label>
+          <select id="statusFilter">
+            <option value="">All statuses</option>
+            <option value="In Stock">In Stock</option>
+            <option value="Low Stock">Low Stock</option>
+            <option value="Out of Stock">Out of Stock</option>
+          </select>
+        </div>
+      </div>
+      <button class="btn btn--primary" id="openAddModalBtn" type="button">+ Add product</button>
+    </section>
+
+    <!-- Table -->
+    <section class="table-wrap">
+      <table class="data-table" id="productTable">
+        <thead>
+          <tr>
+            <th data-sort="id">ID</th>
+            <th data-sort="product_name">Product name</th>
+            <th data-sort="category">Category</th>
+            <th data-sort="quantity">Quantity</th>
+            <th data-sort="price">Price</th>
+            <th data-sort="supplier">Supplier</th>
+            <th>Stock status</th>
+            <th data-sort="created_date">Created</th>
+            <th class="col-actions">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="productTableBody">
+          <!-- rows injected by js/app.js -->
+        </tbody>
+      </table>
+
+      <div class="table-empty" id="tableEmptyState" hidden>
+        <p class="table-empty__title">No products found</p>
+        <p class="table-empty__hint">Try clearing your filters, or add your first product.</p>
+      </div>
+
+      <div class="table-loading" id="tableLoadingState">
+        <p>Loading products…</p>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Add / Edit modal -->
+  <div class="modal-overlay" id="productModalOverlay" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <div class="modal__header">
+        <h2 class="modal__title" id="modalTitle">Add product</h2>
+        <button class="modal__close" id="closeModalBtn" type="button" aria-label="Close">&times;</button>
+      </div>
+
+      <form id="productForm" class="modal__form" novalidate>
+        <input type="hidden" id="productId" />
+
+        <div class="form-row">
+          <label for="productName">Product name <span class="required">*</span></label>
+          <input type="text" id="productName" maxlength="150" required />
+          <span class="form-error" id="err-productName"></span>
+        </div>
+
+        <div class="form-row form-row--split">
+          <div>
+            <label for="category">Category <span class="required">*</span></label>
+            <select id="category" required></select>
+            <span class="form-error" id="err-category"></span>
+          </div>
+          <div>
+            <label for="supplier">Supplier <span class="required">*</span></label>
+            <input type="text" id="supplier" maxlength="150" required />
+            <span class="form-error" id="err-supplier"></span>
+          </div>
+        </div>
+
+        <div class="form-row form-row--split">
+          <div>
+            <label for="quantity">Quantity <span class="required">*</span></label>
+            <input type="number" id="quantity" min="0" step="1" required />
+            <span class="form-error" id="err-quantity"></span>
+          </div>
+          <div>
+            <label for="price">Price ($) <span class="required">*</span></label>
+            <input type="number" id="price" min="0" step="0.01" required />
+            <span class="form-error" id="err-price"></span>
+          </div>
+        </div>
+
+        <div class="form-banner form-banner--error" id="formBanner" hidden></div>
+
+        <div class="modal__footer">
+          <button type="button" class="btn btn--ghost" id="cancelModalBtn">Cancel</button>
+          <button type="submit" class="btn btn--primary" id="submitBtn">Save product</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Toast notifications -->
+  <div id="toastContainer" class="toast-container" aria-live="polite"></div>
+
+  <script src="js/app.js"></script>
 </body>
 </html>
