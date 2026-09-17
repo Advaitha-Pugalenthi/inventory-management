@@ -1,124 +1,14 @@
 /**
  * Inventory Control - frontend application logic.
  *
- * This file talks to the Django REST Framework API using the fetch()
- * API and plain JSON - no frameworks or build step required.
- *
- * If your backend is not running on http://127.0.0.1:8000, change the
- * API_BASE_URL constant below to match.
+ * Automatically connects to the Spring Boot REST API when online,
+ * or operates in LocalStorage Demo Mode when offline.
  */
 
 const API_BASE_URL = 'http://127.0.0.1:8000/api';
 const PRODUCTS_URL = `${API_BASE_URL}/products/`;
 
-// ---------------------------------------------------------------------------
-// State
-// ---------------------------------------------------------------------------
-let allProducts = [];       // full list fetched from the API
-let currentSort = { field: 'created_date', direction: 'desc' };
-
-// ---------------------------------------------------------------------------
-// DOM references
-// ---------------------------------------------------------------------------
-const apiStatusEl = document.getElementById('apiStatus');
-
-const searchInput = document.getElementById('searchInput');
-const categoryFilter = document.getElementById('categoryFilter');
-const statusFilter = document.getElementById('statusFilter');
-
-const tableBody = document.getElementById('productTableBody');
-const tableEmptyState = document.getElementById('tableEmptyState');
-const tableLoadingState = document.getElementById('tableLoadingState');
-
-const statTotal = document.getElementById('statTotal');
-const statInStock = document.getElementById('statInStock');
-const statLowStock = document.getElementById('statLowStock');
-const statOutStock = document.getElementById('statOutStock');
-const statValue = document.getElementById('statValue');
-
-const modalOverlay = document.getElementById('productModalOverlay');
-const modalTitle = document.getElementById('modalTitle');
-const productForm = document.getElementById('productForm');
-const openAddModalBtn = document.getElementById('openAddModalBtn');
-const closeModalBtn = document.getElementById('closeModalBtn');
-const cancelModalBtn = document.getElementById('cancelModalBtn');
-const submitBtn = document.getElementById('submitBtn');
-const formBanner = document.getElementById('formBanner');
-
-const productIdInput = document.getElementById('productId');
-const productNameInput = document.getElementById('productName');
-const categoryInput = document.getElementById('category');
-const supplierInput = document.getElementById('supplier');
-const quantityInput = document.getElementById('quantity');
-const priceInput = document.getElementById('price');
-
-const toastContainer = document.getElementById('toastContainer');
-
-// Categories must match backend/products/models.py CATEGORY_CHOICES.
-const CATEGORIES = [
-  'Electronics',
-  'Furniture',
-  'Clothing',
-  'Food & Beverages',
-  'Stationery',
-  'Tools & Hardware',
-  'Other',
-];
-
-// ---------------------------------------------------------------------------
-// Init
-// ---------------------------------------------------------------------------
-document.addEventListener('DOMContentLoaded', () => {
-  populateCategoryDropdowns();
-  attachEventListeners();
-  fetchProducts();
-});
-
-function populateCategoryDropdowns() {
-  CATEGORIES.forEach((cat) => {
-    const filterOpt = document.createElement('option');
-    filterOpt.value = cat;
-    filterOpt.textContent = cat;
-    categoryFilter.appendChild(filterOpt);
-
-    const formOpt = document.createElement('option');
-    formOpt.value = cat;
-    formOpt.textContent = cat;
-    categoryInput.appendChild(formOpt);
-  });
-}
-
-function attachEventListeners() {
-  searchInput.addEventListener('input', debounce(renderTable, 250));
-  categoryFilter.addEventListener('change', renderTable);
-  statusFilter.addEventListener('change', renderTable);
-
-  openAddModalBtn.addEventListener('click', () => openModal('add'));
-  closeModalBtn.addEventListener('click', closeModal);
-  cancelModalBtn.addEventListener('click', closeModal);
-  modalOverlay.addEventListener('click', (e) => {
-    if (e.target === modalOverlay) closeModal();
-  });
-
-  productForm.addEventListener('submit', handleFormSubmit);
-
-  document.querySelectorAll('.data-table thead th[data-sort]').forEach((th) => {
-    th.addEventListener('click', () => {
-      const field = th.dataset.sort;
-      if (currentSort.field === field) {
-        currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
-      } else {
-        currentSort = { field, direction: 'asc' };
-      }
-      renderTable();
-    });
-  });
-}
-
-// ---------------------------------------------------------------------------
-// API calls
-// Initial sample data for standalone demo mode (LocalStorage fallback)
-// ---------------------------------------------------------------------------
+// Initial sample data for standalone demo mode
 const SAMPLE_PRODUCTS = [
   {
     id: 1,
@@ -166,8 +56,106 @@ const SAMPLE_PRODUCTS = [
   }
 ];
 
+// State
+let allProducts = [];
+let currentSort = { field: 'created_date', direction: 'desc' };
 let isLocalDemoMode = false;
 
+// DOM references
+const apiStatusEl = document.getElementById('apiStatus');
+const searchInput = document.getElementById('searchInput');
+const categoryFilter = document.getElementById('categoryFilter');
+const statusFilter = document.getElementById('statusFilter');
+
+const tableBody = document.getElementById('productTableBody');
+const tableEmptyState = document.getElementById('tableEmptyState');
+const tableLoadingState = document.getElementById('tableLoadingState');
+
+const statTotal = document.getElementById('statTotal');
+const statInStock = document.getElementById('statInStock');
+const statLowStock = document.getElementById('statLowStock');
+const statOutStock = document.getElementById('statOutStock');
+const statValue = document.getElementById('statValue');
+
+const modalOverlay = document.getElementById('productModalOverlay');
+const modalTitle = document.getElementById('modalTitle');
+const productForm = document.getElementById('productForm');
+const openAddModalBtn = document.getElementById('openAddModalBtn');
+const closeModalBtn = document.getElementById('closeModalBtn');
+const cancelModalBtn = document.getElementById('cancelModalBtn');
+const submitBtn = document.getElementById('submitBtn');
+const formBanner = document.getElementById('formBanner');
+
+const productIdInput = document.getElementById('productId');
+const productNameInput = document.getElementById('productName');
+const categoryInput = document.getElementById('category');
+const supplierInput = document.getElementById('supplier');
+const quantityInput = document.getElementById('quantity');
+const priceInput = document.getElementById('price');
+const toastContainer = document.getElementById('toastContainer');
+
+const CATEGORIES = [
+  'Electronics',
+  'Furniture',
+  'Clothing',
+  'Food & Beverages',
+  'Stationery',
+  'Tools & Hardware',
+  'Other',
+];
+
+// Init
+document.addEventListener('DOMContentLoaded', () => {
+  populateCategoryDropdowns();
+  attachEventListeners();
+  fetchProducts();
+});
+
+function populateCategoryDropdowns() {
+  categoryFilter.innerHTML = '<option value="">All categories</option>';
+  categoryInput.innerHTML = '<option value="">Select category</option>';
+  
+  CATEGORIES.forEach((cat) => {
+    const filterOpt = document.createElement('option');
+    filterOpt.value = cat;
+    filterOpt.textContent = cat;
+    categoryFilter.appendChild(filterOpt);
+
+    const formOpt = document.createElement('option');
+    formOpt.value = cat;
+    formOpt.textContent = cat;
+    categoryInput.appendChild(formOpt);
+  });
+}
+
+function attachEventListeners() {
+  searchInput.addEventListener('input', debounce(renderTable, 250));
+  categoryFilter.addEventListener('change', renderTable);
+  statusFilter.addEventListener('change', renderTable);
+
+  openAddModalBtn.addEventListener('click', () => openModal('add'));
+  closeModalBtn.addEventListener('click', closeModal);
+  cancelModalBtn.addEventListener('click', closeModal);
+  modalOverlay.addEventListener('click', (e) => {
+    if (e.target === modalOverlay) closeModal();
+  });
+
+  productForm.addEventListener('submit', handleFormSubmit);
+
+  document.querySelectorAll('.data-table thead th[data-sort]').forEach((th) => {
+    th.addEventListener('click', () => {
+      const field = th.dataset.sort;
+      if (currentSort.field === field) {
+        currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+      } else {
+        currentSort = { field, direction: 'asc' };
+      }
+      renderTable();
+    });
+  });
+}
+
+// LocalStorage Helper
 function computeStockStatus(qty) {
   const q = Number(qty);
   if (q === 0) return 'Out of Stock';
@@ -192,59 +180,41 @@ function saveStoredProducts(products) {
   localStorage.setItem('inventory_products', JSON.stringify(products));
 }
 
-// ---------------------------------------------------------------------------
-// API calls with LocalStorage fallback
-// ---------------------------------------------------------------------------
+// API and Local Calls
 async function fetchProducts() {
   showLoading(true);
   try {
-    const response = await fetch(PRODUCTS_URL);
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 2000);
+    const timeoutId = setTimeout(() => controller.abort(), 1500);
     const response = await fetch(PRODUCTS_URL, { signal: controller.signal });
     clearTimeout(timeoutId);
-    if (!response.ok) throw new Error(`Server responded with ${response.status}`);
+    if (!response.ok) throw new Error(`Server status ${response.status}`);
     const data = await response.json();
 
-    // DRF pagination wraps results in {count, next, previous, results}.
-    allProducts = Array.isArray(data) ? data : data.results;
-    setApiStatus(true);
+    allProducts = Array.isArray(data) ? data : (data.results || []);
     isLocalDemoMode = false;
     setApiStatus(true, 'API connected');
   } catch (err) {
-    console.warn('Backend API unavailable. Falling back to Demo Mode (LocalStorage).', err);
     isLocalDemoMode = true;
     allProducts = getStoredProducts();
     setApiStatus(true, 'Demo Mode (Local Data)');
   } finally {
     renderTable();
     renderStats();
-  } catch (err) {
-    console.error('Failed to load products:', err);
-    setApiStatus(false);
-    showToast('Could not reach the API. Is the Django server running?', 'error');
-  } finally {
     showLoading(false);
   }
 }
 
 async function createProduct(payload) {
-  const response = await fetch(PRODUCTS_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-  const data = await response.json();
-  return { ok: response.ok, data };
   if (isLocalDemoMode) {
     const products = getStoredProducts();
-    const newId = products.length > 0 ? Math.max(...products.map(p => p.id)) + 1 : 1;
+    const newId = products.length > 0 ? Math.max(...products.map((p) => Number(p.id))) + 1 : 1;
     const newProduct = {
       id: newId,
       ...payload,
       stock_status: computeStockStatus(payload.quantity),
       created_date: new Date().toISOString(),
-      updated_date: new Date().toISOString()
+      updated_date: new Date().toISOString(),
     };
     products.unshift(newProduct);
     saveStoredProducts(products);
@@ -260,31 +230,23 @@ async function createProduct(payload) {
     const data = await response.json();
     return { ok: response.ok, data };
   } catch (err) {
-    // Fallback to local
     isLocalDemoMode = true;
     return createProduct(payload);
   }
 }
 
 async function updateProduct(id, payload) {
-  const response = await fetch(`${PRODUCTS_URL}${id}/`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-  const data = await response.json();
-  return { ok: response.ok, data };
   if (isLocalDemoMode) {
     let products = getStoredProducts();
     const numId = Number(id);
     let updatedObj = null;
-    products = products.map(p => {
-      if (p.id === numId) {
+    products = products.map((p) => {
+      if (Number(p.id) === numId) {
         updatedObj = {
           ...p,
           ...payload,
           stock_status: computeStockStatus(payload.quantity !== undefined ? payload.quantity : p.quantity),
-          updated_date: new Date().toISOString()
+          updated_date: new Date().toISOString(),
         };
         return updatedObj;
       }
@@ -309,15 +271,11 @@ async function updateProduct(id, payload) {
 }
 
 async function deleteProduct(id) {
-  const response = await fetch(`${PRODUCTS_URL}${id}/`, { method: 'DELETE' });
-  let data = {};
-  try { data = await response.json(); } catch (_) { /* no body */ }
-  return { ok: response.ok, data };
   if (isLocalDemoMode) {
     let products = getStoredProducts();
     const numId = Number(id);
-    const target = products.find(p => p.id === numId);
-    products = products.filter(p => p.id !== numId);
+    const target = products.find((p) => Number(p.id) === numId);
+    products = products.filter((p) => Number(p.id) !== numId);
     saveStoredProducts(products);
     const name = target ? target.product_name : 'Product';
     return { ok: true, data: { success: true, message: `Product "${name}" deleted successfully.` } };
@@ -326,7 +284,7 @@ async function deleteProduct(id) {
   try {
     const response = await fetch(`${PRODUCTS_URL}${id}/`, { method: 'DELETE' });
     let data = {};
-    try { data = await response.json(); } catch (_) { /* no body */ }
+    try { data = await response.json(); } catch (_) {}
     return { ok: response.ok, data };
   } catch (err) {
     isLocalDemoMode = true;
@@ -334,12 +292,10 @@ async function deleteProduct(id) {
   }
 }
 
-function setApiStatus(isOnline) {
 function setApiStatus(isOnline, statusText) {
   apiStatusEl.classList.remove('status-pill--pending', 'status-pill--ok', 'status-pill--error');
   if (isOnline) {
     apiStatusEl.classList.add('status-pill--ok');
-    apiStatusEl.textContent = 'API connected';
     apiStatusEl.textContent = statusText || 'API connected';
   } else {
     apiStatusEl.classList.add('status-pill--error');
@@ -347,9 +303,7 @@ function setApiStatus(isOnline, statusText) {
   }
 }
 
-// ---------------------------------------------------------------------------
 // Rendering
-// ---------------------------------------------------------------------------
 function getFilteredProducts() {
   const searchTerm = searchInput.value.trim().toLowerCase();
   const category = categoryFilter.value;
@@ -446,9 +400,7 @@ function showLoading(isLoading) {
   if (isLoading) tableEmptyState.hidden = true;
 }
 
-// ---------------------------------------------------------------------------
 // Modal (Add / Edit)
-// ---------------------------------------------------------------------------
 function openModal(mode, product = null) {
   clearFormErrors();
   productForm.reset();
@@ -476,9 +428,7 @@ function closeModal() {
   modalOverlay.hidden = true;
 }
 
-// ---------------------------------------------------------------------------
-// Form validation (client-side) + submit
-// ---------------------------------------------------------------------------
+// Form validation & submit
 function clearFormErrors() {
   document.querySelectorAll('.form-error').forEach((el) => (el.textContent = ''));
   document.querySelectorAll('.invalid').forEach((el) => el.classList.remove('invalid'));
@@ -561,13 +511,13 @@ async function handleFormSubmit(e) {
       return;
     }
 
-    showToast(data.message || 'Saved successfully.', 'success');
+    showToast((data && data.message) || 'Saved successfully.', 'success');
     closeModal();
     await fetchProducts();
   } catch (err) {
     console.error(err);
     formBanner.hidden = false;
-    formBanner.textContent = 'Could not reach the server. Please try again.';
+    formBanner.textContent = 'An error occurred while saving. Please try again.';
   } finally {
     submitBtn.disabled = false;
     submitBtn.textContent = id ? 'Save changes' : 'Save product';
@@ -590,9 +540,6 @@ function applyServerErrors(errors) {
   });
 }
 
-// ---------------------------------------------------------------------------
-// Delete
-// ---------------------------------------------------------------------------
 async function handleDelete(product) {
   const confirmed = window.confirm(
     `Delete "${product.product_name}"? This action cannot be undone.`
@@ -602,20 +549,17 @@ async function handleDelete(product) {
   try {
     const { ok, data } = await deleteProduct(product.id);
     if (!ok) {
-      showToast(data.message || 'Could not delete this product.', 'error');
+      showToast((data && data.message) || 'Could not delete this product.', 'error');
       return;
     }
-    showToast(data.message || 'Product deleted.', 'success');
+    showToast((data && data.message) || 'Product deleted.', 'success');
     await fetchProducts();
   } catch (err) {
     console.error(err);
-    showToast('Could not reach the server. Please try again.', 'error');
+    showToast('Could not delete product. Please try again.', 'error');
   }
 }
 
-// ---------------------------------------------------------------------------
-// Toasts
-// ---------------------------------------------------------------------------
 function showToast(message, type = 'info') {
   const toast = document.createElement('div');
   toast.className = `toast toast--${type}`;
@@ -624,9 +568,6 @@ function showToast(message, type = 'info') {
   setTimeout(() => toast.remove(), 3500);
 }
 
-// ---------------------------------------------------------------------------
-// Utilities
-// ---------------------------------------------------------------------------
 function debounce(fn, delay) {
   let timer;
   return (...args) => {
@@ -637,11 +578,12 @@ function debounce(fn, delay) {
 
 function escapeHtml(str) {
   const div = document.createElement('div');
-  div.textContent = str;
+  div.textContent = str || '';
   return div.innerHTML;
 }
 
 function formatDate(isoString) {
+  if (!isoString) return '';
   const date = new Date(isoString);
   return date.toLocaleDateString(undefined, {
     year: 'numeric',
